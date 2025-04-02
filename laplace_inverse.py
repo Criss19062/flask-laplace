@@ -1,48 +1,37 @@
-from flask_cors import CORS
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import sympy as sp
-import scipy.signal as sig
-import numpy as np
 
 app = Flask(__name__)
 CORS(app)
 
-# Definir variables simbólicas
 s, t = sp.symbols('s t')
 
 def inversa_laplace(expresion_str):
     try:
-        expresion = sp.sympify(expresion_str)
+        expresion = sp.sympify(expresion_str) / s  # Aplicar escalón automáticamente
+        print(f"\n🔹 Función recibida: {expresion_str}")
+        print(f"🔹 Función con escalón aplicado: {expresion}")
 
-        # Intentar fracciones parciales
-        fracciones = sp.apart(expresion, s)
-        
-        # Resolver coeficientes con sistema de ecuaciones
-        coeficientes = sp.symbols(f'a:{len(fracciones.args)}')  # Variables para coeficientes
-        ecuaciones = [sp.expand(f - fracciones) for f in coeficientes]
-        soluciones = sp.solve(ecuaciones, coeficientes)
-        
-        # Reemplazar coeficientes en la expresión
-        expresion_temporal = sum(soluciones[c] * sp.exp(-p * t) for c, p in zip(coeficientes, fracciones.args))
-        
-        return str(expresion_temporal)
-
-    except Exception:
+        # Intentar resolver con Fracciones Parciales
         try:
-            # Método numérico si fracciones parciales falla
-            num, den = sp.fraction(sp.sympify(expresion_str))
-            num = [float(c) for c in sp.Poly(num, s).all_coeffs()]
-            den = [float(c) for c in sp.Poly(den, s).all_coeffs()]
-
-            sistema = sig.TransferFunction(num, den)  # Crear sistema
-            t_vals, y_vals = sig.step(sistema)  # Respuesta al escalón
+            descomposicion = sp.apart(expresion, s)
+            print(f" Método Usado: Fracciones Parciales")
+            print(f" Expresión descompuesta: {descomposicion}")
             
-            # Convertir a expresión simbólica aproximada
-            expr_numerica = sum(y * sp.Heaviside(t - tau) for tau, y in zip(t_vals, y_vals))
-            
-            return str(expr_numerica)
+            # Calcular la inversa de Laplace de cada término
+            inversa = sp.inverse_laplace_transform(descomposicion, s, t)
+            return str(inversa)
         except Exception as e:
-            return f"Error: No se pudo calcular analíticamente ni numéricamente. {str(e)}"
+            print(f" No se pudo hacer fracciones parciales: {e}")
+        
+        # Si falla, usar Método Numérico
+        print(f" Método Usado: Aproximación Numérica")
+        inversa_numerica = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
+        return str(inversa_numerica)
+
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 @app.route('/laplace', methods=['GET'])
 def calcular_laplace():
