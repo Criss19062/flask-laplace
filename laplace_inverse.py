@@ -23,7 +23,7 @@ def inversa_laplace(expresion_str):
             inversa = sp.inverse_laplace_transform(descomposicion, s, t)
             
             # Convierte números complejos en senos y cosenos
-            inversa_simplificada = sp.simplify(inversa.rewrite(sp.Heaviside).rewrite(sp.exp).expand(trig=True))
+            inversa_simplificada = sp.simplify(sp.rewrite(inversa, sp.sin).rewrite(sp.cos)) 
             
             # Asegurar que solo la variable 's' se convierta en 't'
             inversa_simplificada = inversa_simplificada.subs(s, t)
