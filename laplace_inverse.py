@@ -1,8 +1,9 @@
+from flask_cors import CORS
 from flask import Flask, request, jsonify
 import sympy as sp
 
 app = Flask(__name__)
-
+CORS(app)
 s, t = sp.symbols('s t')
 
 def inversa_laplace(expresion_str):
