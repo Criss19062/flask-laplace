@@ -9,7 +9,8 @@ s, t = sp.symbols('s t')
 def inversa_laplace(expresion_str):
     try:
         expresion = sp.sympify(expresion_str)
-        inversa = sp.inverse_laplace_transform(expresion, s, t)
+        fracciones_parciales = sp.apart(expresion, s)  # Expansión en fracciones parciales
+        inversa = sp.inverse_laplace_transform(fracciones_parciales, s, t)
         return str(inversa)
     except Exception as e:
         return f"Error: {str(e)}"
