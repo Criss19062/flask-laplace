@@ -21,7 +21,10 @@ def inversa_laplace(expresion_str):
             
             # Calcular la inversa de Laplace de cada término
             inversa = sp.inverse_laplace_transform(descomposicion, s, t)
-            return str(inversa)
+            
+            # Convierte números complejos en senos y cosenos
+            inversa_simplificada = sp.simplify(inversa.rewrite(sp.Heaviside).rewrite(sp.exp).expand(trig=True))
+            return str(inversa_simplificada)
         except Exception as e:
             print(f" No se pudo hacer fracciones parciales: {e}")
         
