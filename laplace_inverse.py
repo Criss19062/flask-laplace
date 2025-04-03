@@ -13,6 +13,15 @@ def inversa_laplace(expresion_str):
         print(f"\n🔹 Función recibida: {expresion_str}")
         print(f"🔹 Función con escalón aplicado: {expresion}")
 
+        # Intentar resolver directamente con SymPy
+        try:
+            inversa = sp.inverse_laplace_transform(expresion, s, t)
+            inversa = sp.simplify(inversa.expand(trig=True))  # Expandir en términos trigonométricos
+            print(f" Método Usado: Directo de SymPy")
+            return str(inversa)
+        except Exception as e:
+            print(f" No se pudo con método directo: {e}")
+
         # Intentar resolver con Fracciones Parciales
         try:
             descomposicion = sp.apart(expresion, s)
@@ -20,21 +29,18 @@ def inversa_laplace(expresion_str):
             print(f" Expresión descompuesta: {descomposicion}")
             
             # Calcular la inversa de Laplace de cada término
-            inversa = sp.inverse_laplace_transform(descomposicion, s, t)
+            terminos = [sp.inverse_laplace_transform(term, s, t).expand(trig=True) for term in descomposicion.as_ordered_terms()]
+            inversa = sum(terminos)
+            inversa = sp.simplify(inversa)
             
-            # Convierte números complejos en senos y cosenos
-            inversa_simplificada = sp.simplify(sp.rewrite(inversa, sp.sin).rewrite(sp.cos)) 
-            
-            # Asegurar que solo la variable 's' se convierta en 't'
-            inversa_simplificada = inversa_simplificada.subs(s, t)
-            
-            return str(inversa_simplificada)
+            return str(inversa)
         except Exception as e:
             print(f" No se pudo hacer fracciones parciales: {e}")
-        
-        # Si falla, usar Método Numérico
+
+        # 3️⃣ Si todo falla, usar Método Numérico
         print(f" Método Usado: Aproximación Numérica")
         inversa_numerica = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
+        inversa_numerica = sp.simplify(inversa_numerica.expand(trig=True))  # Convertir imaginarios a senos/cosenos
         return str(inversa_numerica)
 
     except Exception as e:
