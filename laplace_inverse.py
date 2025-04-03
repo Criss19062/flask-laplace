@@ -13,46 +13,49 @@ def inversa_laplace(expresion_str):
         print(f"\n🔹 Función recibida: {expresion_str}")
         print(f"🔹 Función con escalón aplicado: {expresion}")
 
-        inversa = None  # Variable para almacenar la solución final
-
         # Intentar resolver con el método directo de SymPy
         try:
             inversa = sp.inverse_laplace_transform(expresion, s, t)
-            print(f"✅ Método Usado: Directo de SymPy")
+            metodo_usado = "Método Directo de SymPy"
         except Exception as e:
-            print(f"⚠️ No se pudo hacer con el método directo: {e}")
+            print(f" No se pudo hacer con el método directo: {e}")
 
-        # Intentar resolver con Fracciones Parciales si el método directo falló
-        if inversa is None:
+            # Intentar resolver con Fracciones Parciales
             try:
                 descomposicion = sp.apart(expresion, s)
-                print(f"✅ Método Usado: Fracciones Parciales")
-                print(f"🔹 Expresión descompuesta: {descomposicion}")
+                print(f" Método Usado: Fracciones Parciales")
+                print(f" Expresión descompuesta: {descomposicion}")
                 inversa = sp.inverse_laplace_transform(descomposicion, s, t)
+                metodo_usado = "Fracciones Parciales"
             except Exception as e:
-                print(f"⚠️ No se pudo hacer fracciones parciales: {e}")
+                print(f" No se pudo hacer fracciones parciales: {e}")
 
-        # Si fracciones parciales también falló, usar método numérico
-        if inversa is None:
-            try:
-                print(f"✅ Método Usado: Aproximación Numérica")
+                # Si falla, usar Método Numérico
+                print(f" Método Usado: Aproximación Numérica")
                 inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
+                metodo_usado = "Aproximación Numérica"
 
-                # 🔹 Como último recurso, usar serie de Taylor
-                if not inversa.has(t):  # Si SymPy no generó una función con 't'
-                    inversa = sp.series(inversa, t, n=6).removeO()
+        # Intentar reescribir exponenciales y expandir trigonométricamente
+        try:
+            inversa = inversa.rewrite(sp.exp)
+        except Exception as e:
+            print(f"⚠️ Error en rewrite(sp.exp): {e}")
+
+        # Si hay números complejos, aplicar la identidad de Euler
+        if inversa.has(sp.I):
+            try:
+                inversa = inversa.expand(trig=True)
             except Exception as e:
-                print(f"⚠️ No se pudo calcular por ningún método: {e}")
-                return "Error en el cálculo"
+                print(f"⚠️ Error en expand(trig=True): {e}")
 
-        # 🔹 Reemplazo final para mejorar la presentación
-        inversa = inversa.replace(sp.Heaviside(t), 1)  # Evitar que aparezca Heaviside(t)
-        inversa = sp.simplify(inversa.rewrite(sp.exp).expand(trig=True))  # Evitar números complejos
+        # Eliminar Heaviside(t) si aparece
+        inversa = inversa.replace(sp.Heaviside(t), 1)
 
+        print(f"✅ Resultado final ({metodo_usado}): {inversa}")
         return str(inversa)
 
     except Exception as e:
-        return f"Error en la expresión ingresada: {str(e)}"
+        return f"Error: {str(e)}"
 
 @app.route('/laplace', methods=['GET'])
 def calcular_laplace():
@@ -62,4 +65,3 @@ def calcular_laplace():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
