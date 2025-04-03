@@ -13,36 +13,46 @@ def inversa_laplace(expresion_str):
         print(f"\n🔹 Función recibida: {expresion_str}")
         print(f"🔹 Función con escalón aplicado: {expresion}")
 
-        # Método 1: Intentar la inversa de Laplace directa
+        inversa = None  # Variable para almacenar la solución final
+
+        # Intentar resolver con el método directo de SymPy
         try:
             inversa = sp.inverse_laplace_transform(expresion, s, t)
-            print(f"✅ Método Usado: Inversa de Laplace Directa")
+            print(f"✅ Método Usado: Directo de SymPy")
         except Exception as e:
-            print(f"⚠️ No se pudo hacer por método directo: {e}")
+            print(f"⚠️ No se pudo hacer con el método directo: {e}")
 
-            # Método 2: Intentar con fracciones parciales
+        # Intentar resolver con Fracciones Parciales si el método directo falló
+        if inversa is None:
             try:
                 descomposicion = sp.apart(expresion, s)
                 print(f"✅ Método Usado: Fracciones Parciales")
-                print(f"🔸 Expresión descompuesta: {descomposicion}")
-
-                # Calcular la inversa de Laplace de cada término
+                print(f"🔹 Expresión descompuesta: {descomposicion}")
                 inversa = sp.inverse_laplace_transform(descomposicion, s, t)
             except Exception as e:
                 print(f"⚠️ No se pudo hacer fracciones parciales: {e}")
+
+        # Si fracciones parciales también falló, usar método numérico
+        if inversa is None:
+            try:
                 print(f"✅ Método Usado: Aproximación Numérica")
                 inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
 
-        # 🔹 Reemplazar Heaviside(t) por 1
-        inversa = inversa.replace(sp.Heaviside(t), 1)
+                # 🔹 Como último recurso, usar serie de Taylor
+                if not inversa.has(t):  # Si SymPy no generó una función con 't'
+                    inversa = sp.series(inversa, t, n=6).removeO()
+            except Exception as e:
+                print(f"⚠️ No se pudo calcular por ningún método: {e}")
+                return "Error en el cálculo"
 
-        # 🔹 Convertir números complejos en seno y coseno de otra manera
-        inversa = sp.expand(inversa).simplify(trig=True)
+        # 🔹 Reemplazo final para mejorar la presentación
+        inversa = inversa.replace(sp.Heaviside(t), 1)  # Evitar que aparezca Heaviside(t)
+        inversa = sp.simplify(inversa.rewrite(sp.exp).expand(trig=True))  # Evitar números complejos
 
         return str(inversa)
 
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error en la expresión ingresada: {str(e)}"
 
 @app.route('/laplace', methods=['GET'])
 def calcular_laplace():
