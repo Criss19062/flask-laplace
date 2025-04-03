@@ -7,6 +7,10 @@ CORS(app)
 
 s, t = sp.symbols('s t')
 
+def filtrar_numeros_pequenos(expresion, umbral=1e-10):
+    """Reemplaza números muy pequeños por 0 para evitar términos insignificantes en la respuesta."""
+    return expresion.xreplace({n: 0 for n in expresion.atoms(sp.Number) if abs(n) < umbral})
+
 def aplicar_identidad_euler(expresion):
     """Convierte cualquier número complejo en términos de senos y cosenos usando la Identidad de Euler"""
     # Buscar exponenciales complejas
@@ -31,26 +35,31 @@ def inversa_laplace(expresion_str):
         try:
             inversa = sp.inverse_laplace_transform(expresion, s, t)
             print(f"✅ Método Usado: Inversa Directa de SymPy")
-            inversa = aplicar_identidad_euler(inversa)  # Forzar conversión manual
-            return str(inversa).replace("Heaviside(t)", "1")
         except Exception as e:
             print(f"❌ No se pudo hacer con SymPy directamente: {e}")
-
+        else:
+            inversa = aplicar_identidad_euler(inversa)  # Forzar conversión manual
+            inversa = filtrar_numeros_pequenos(inversa)
+            return str(inversa).replace("Heaviside(t)", "1")
+        
         # 🟠 Intentar con Fracciones Parciales
         try:
             descomposicion = sp.apart(expresion, s)
             print(f"✅ Método Usado: Fracciones Parciales")
             print(f"🛠 Expresión descompuesta: {descomposicion}")
             inversa = sp.inverse_laplace_transform(descomposicion, s, t)
-            inversa = aplicar_identidad_euler(inversa)  # Forzar conversión manual
-            return str(inversa).replace("Heaviside(t)", "1")
         except Exception as e:
             print(f"❌ No se pudo hacer con Fracciones Parciales: {e}")
-
+        else:
+            inversa = aplicar_identidad_euler(inversa)  # Forzar conversión manual
+            inversa = filtrar_numeros_pequenos(inversa)
+            return str(inversa).replace("Heaviside(t)", "1")
+            
         # 🟡 Último recurso: Método Numérico
         print(f"⚠️ Método Usado: Aproximación Numérica")
         inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
         inversa = aplicar_identidad_euler(inversa)  # Forzar conversión manual
+        inversa = filtrar_numeros_pequenos(inversa)
         return str(inversa).replace("Heaviside(t)", "1")
 
     except Exception as e:
