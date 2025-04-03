@@ -13,35 +13,33 @@ def inversa_laplace(expresion_str):
         print(f"\n🔹 Función recibida: {expresion_str}")
         print(f"🔹 Función con escalón aplicado: {expresion}")
 
-        # Intentar resolver directamente con SymPy
+        # Método 1: Intentar la inversa de Laplace directa
         try:
             inversa = sp.inverse_laplace_transform(expresion, s, t)
-            inversa = sp.simplify(inversa.expand(trig=True))  # Expandir en términos trigonométricos
-            print(f" Método Usado: Directo de SymPy")
-            return str(inversa)
+            print(f"✅ Método Usado: Inversa de Laplace Directa")
         except Exception as e:
-            print(f" No se pudo con método directo: {e}")
+            print(f"⚠️ No se pudo hacer por método directo: {e}")
 
-        # Intentar resolver con Fracciones Parciales
-        try:
-            descomposicion = sp.apart(expresion, s)
-            print(f" Método Usado: Fracciones Parciales")
-            print(f" Expresión descompuesta: {descomposicion}")
-            
-            # Calcular la inversa de Laplace de cada término
-            terminos = [sp.inverse_laplace_transform(term, s, t).expand(trig=True) for term in descomposicion.as_ordered_terms()]
-            inversa = sum(terminos)
-            inversa = sp.simplify(inversa)
-            
-            return str(inversa)
-        except Exception as e:
-            print(f" No se pudo hacer fracciones parciales: {e}")
+            # Método 2: Intentar con fracciones parciales
+            try:
+                descomposicion = sp.apart(expresion, s)
+                print(f"✅ Método Usado: Fracciones Parciales")
+                print(f"🔸 Expresión descompuesta: {descomposicion}")
 
-        # 3️⃣ Si todo falla, usar Método Numérico
-        print(f" Método Usado: Aproximación Numérica")
-        inversa_numerica = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
-        inversa_numerica = sp.simplify(inversa_numerica.expand(trig=True))  # Convertir imaginarios a senos/cosenos
-        return str(inversa_numerica)
+                # Calcular la inversa de Laplace de cada término
+                inversa = sp.inverse_laplace_transform(descomposicion, s, t)
+            except Exception as e:
+                print(f"⚠️ No se pudo hacer fracciones parciales: {e}")
+                print(f"✅ Método Usado: Aproximación Numérica")
+                inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
+
+        # 🔹 Reemplazar Heaviside(t) por 1
+        inversa = inversa.replace(sp.Heaviside(t), 1)
+
+        # 🔹 Convertir números complejos en seno y coseno de otra manera
+        inversa = sp.expand(inversa).simplify(trig=True)
+
+        return str(inversa)
 
     except Exception as e:
         return f"Error: {str(e)}"
@@ -54,3 +52,4 @@ def calcular_laplace():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
