@@ -16,3 +16,4 @@ six==1.16.0
 sympy==1.13.3
 flask
 Flask-CORS
+mpmath
