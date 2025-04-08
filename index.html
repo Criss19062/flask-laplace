@@ -983,29 +983,41 @@
       }
       
       let url = "https://flask-laplace.onrender.com/laplace?expresion=" + encodeURIComponent(expresionClean);
-
       fetch(url)
-          .then(response => {
-            if (!response.ok) throw new Error("Error de servidor: " + response.status);
-            return response.json();
-          })
-          .then(data => {
-              let respuesta = data.resultado;
-              
-              if (respuesta.includes("Error")) {
-                  console.error("Error al calcular la inversa de Laplace:", respuesta);
-                  return;
-              }
-              
-              // Verifica si la respuesta contiene 's' y reemplázala por 't'
-              
-              // Agregar la función H(t) en GeoGebra
-              console.log("H(t)=",respuesta);
-              let comando = `Ht(t) = ${respuesta}`;
-              ggbApplet.evalCommand(comando);
-          })
-          .catch(error => console.error("Error en la petición:", error));
+        .then(response => {
+          if (!response.ok) throw new Error("Error de servidor: " + response.status);
+          return response.json();
+        })
+        .then(data => {
+          if (data.tipo === "error") {
+            console.error("Error al calcular la inversa de Laplace:", data.mensaje);
+            return;
+          }
+      
+          if (data.tipo === "simbolico") {
+            // Mostrar la expresión simbólica como Ht(t)
+            let respuesta = data.resultado;
+            console.log("H(t) simbólico:", respuesta);
+            let comando = `Ht(t) = ${respuesta}`;
+            ggbApplet.evalCommand(comando);
+          } 
+          
+          else if (data.tipo === "numerico") {
+            let puntos = data.puntos; // Array de objetos con t e y
+      
+            // Crear una lista de puntos en GeoGebra
+            let listaGeoGebra = puntos.map(p => `(${p.t}, ${p.y})`).join(", ");
+            let comando = `ListaNum = {${listaGeoGebra}}`;
+            ggbApplet.evalCommand(comando);
+      
+            // También graficar la lista como curva si se desea
+            ggbApplet.evalCommand("Curve( Element( ListaNum, k, 1 ), Element( ListaNum, k, 2 ), k, 1, Length( ListaNum ) )");
+          }
+        })
+        .catch(error => console.error("Error en la petición:", error));
+
     }
+    
     function limpiarExpresion(expresionConIgual) {
       if (!expresionConIgual.includes("=")) return "";
 
