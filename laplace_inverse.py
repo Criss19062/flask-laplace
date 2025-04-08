@@ -3,7 +3,7 @@ from flask_cors import CORS
 import sympy as sp
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 s, t = sp.symbols('s t')
 
