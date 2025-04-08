@@ -42,26 +42,44 @@ def inversa_laplace(expresion_str):
         expresion = sp.sympify(expresion_str) / s  # Aplicar escalón automáticamente
         print(f"\n🔹 Función recibida: {expresion_str}")
         print(f"🔹 Función con escalón aplicado: {expresion}")
-        
+
         # 🟠 Intentar con Fracciones Parciales
         try:
             descomposicion = sp.apart(expresion, s)
             print(f"✅ Método Usado: Fracciones Parciales")
             print(f"🛠 Expresión descompuesta: {descomposicion}")
             inversa = sp.inverse_laplace_transform(descomposicion, s, t)
+
+            inversa = aplicar_identidad_euler(inversa)
+            inversa = filtrar_numeros_pequenos(inversa)
+
+            return {
+                "tipo": "simbolico",
+                "resultado": str(inversa).replace("Heaviside(t)", "1")
+            }
+
         except Exception as e:
             print(f"❌ Fracciones Parciales fallaron: {e}")
-        
+
             # 🟡 Intentar con noconds=True
             try:
                 inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
                 print(f"✅ Método Usado: noconds=True")
+
+                inversa = aplicar_identidad_euler(inversa)
+                inversa = filtrar_numeros_pequenos(inversa)
+
+                return {
+                    "tipo": "simbolico",
+                    "resultado": str(inversa).replace("Heaviside(t)", "1")
+                }
+
             except Exception as e:
                 print(f"⚠️ SymPy tampoco pudo (noconds=True): {e}")
-        
+
                 # 🔴 Último Recurso: Método Numérico con mpmath
                 print(f"⚠️ Usando mpmath.invertlaplace como último recurso...")
-        
+
                 def laplace_func(s_num):
                     try:
                         f = sp.lambdify(s, expresion, modules=["mpmath", "numpy"])
@@ -69,36 +87,63 @@ def inversa_laplace(expresion_str):
                     except Exception as inner_e:
                         print(f"Error al convertir con lambdify: {inner_e}")
                         return 0
-        
+
                 try:
-                    # Probar en algunos valores de t para verificar que funciona
                     valores_t = np.linspace(0.01, 10, 100)
                     resultado_numerico = [float(invertlaplace(laplace_func, ti)) for ti in valores_t]
                     resultado_t = list(map(float, valores_t))
+
                     print(f"✅ Método Usado: mpmath.invertlaplace")
-                    # Devolver como dos listas separadas
+
                     return {
-                        "t": resultado_t,
-                        "y": resultado_numerico,
-                        "metodo": "numérico"
+                        "tipo": "numerico",
+                        "puntos": list(zip(resultado_t, resultado_numerico))
                     }
-                    
+
                 except Exception as final_e:
-                    return f"Error en método numérico (mpmath): {str(final_e)}"
-        
-        inversa = aplicar_identidad_euler(inversa)
-        inversa = filtrar_numeros_pequenos(inversa)
-        return str(inversa).replace("Heaviside(t)", "1")
+                    return {
+                        "tipo": "error",
+                        "mensaje": f"Error en método numérico (mpmath): {str(final_e)}"
+                    }
 
     except Exception as e:
-        return f"Error: {str(e)}"
+        return {
+            "tipo": "error",
+            "mensaje": f"Error general: {str(e)}"
+        }
 
 @app.route('/laplace', methods=['GET'])
 @cross_origin(origin="*")  # <- esto permite peticiones de GitHub Pages
 def calcular_laplace():
     expresion = request.args.get('expresion', "1 / (s + 1)")
     resultado = inversa_laplace(expresion)
-    return jsonify({"resultado": resultado})
+    
+    # Si hay un error
+    if resultado.get("tipo") == "error":
+        return jsonify({
+            "tipo": "error",
+            "mensaje": resultado.get("mensaje", "Error desconocido")
+        })
+
+    # Si es simbólico
+    if resultado.get("tipo") == "simbolico":
+        return jsonify({
+            "tipo": "simbolico",
+            "resultado": resultado.get("resultado")
+        })
+
+    # Si es numérico
+    if resultado.get("tipo") == "numerico":
+        return jsonify({
+            "tipo": "numerico",
+            "puntos": resultado.get("puntos")
+        })
+
+    # Respuesta desconocida
+    return jsonify({
+        "tipo": "error",
+        "mensaje": "Respuesta inesperada del servidor"
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
