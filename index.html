@@ -923,7 +923,7 @@
       ggbApplet.setCoordSystem(-Tss, Tfinal, -1/4, 1 + 0.5);
 
 
-      }
+    }
 
     function ordenarPolinomio(nombreLista, nombrePolinomio) {
       if (!ggbApplet.exists(nombreLista)) return;
@@ -959,9 +959,19 @@
     }
     // Función para hacer la solicitud a la API
     function calcularLaplace() {
+      // Verificar si H existe en GeoGebra
+      if (!ggbApplet.exists("H")) {
+        console.error("La variable H no existe todavía en GeoGebra.");
+        return;
+      }
       let expresion = ggbApplet.getValueString("H");
       console.log("expresion:",expresion)
       
+      // Verificar si la expresión es válida y no contiene caracteres incorrectos como "?"
+      if (!expresion || expresion.includes("?")) {
+        console.error("La expresión es inválida o no se ha definido correctamente.");
+        return;
+      }
       let expresionClean=limpiarExpresion(expresion);
       console.log("expresion limpia:",expresionClean)
 
