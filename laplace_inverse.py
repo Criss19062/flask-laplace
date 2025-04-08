@@ -3,7 +3,16 @@ from flask_cors import CORS, cross_origin
 import sympy as sp
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Ruta ligera para UptimeRobot
+@app.route('/')
+def home():
+    return '🟢 API de Laplace activa'
+
+@app.route('/ping')
+def ping():
+    return 'pong'
 
 s, t = sp.symbols('s t')
 
