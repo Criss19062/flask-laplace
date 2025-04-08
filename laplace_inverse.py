@@ -6,6 +6,15 @@ from mpmath import invertlaplace
 import mpmath as mp
 import numpy as np
 
+# Ruta ligera para UptimeRobot
+@app.route('/')
+def home():
+    return '🟢 API de Laplace activa'
+
+@app.route('/ping')
+def ping():
+    return 'pong'
+
 app = Flask(__name__)
 CORS(app)
 
