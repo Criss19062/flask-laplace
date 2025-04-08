@@ -3,7 +3,7 @@ from flask_cors import CORS, cross_origin
 import sympy as sp
 
 app = Flask(__name__)
-CORS(app,resources={r"/*": {"origins": ["*", "null"]}})
+CORS(app) # Esto permite solicitudes desde cualquier origen
 
 # Ruta ligera para UptimeRobot
 @app.route('/')
@@ -75,6 +75,7 @@ def inversa_laplace(expresion_str):
         return f"Error: {str(e)}"
 
 @app.route('/laplace', methods=['GET'])
+@cross_origin(origin="*")  # <- esto permite peticiones de GitHub Pages
 def calcular_laplace():
     expresion = request.args.get('expresion', "1 / (s + 1)")
     resultado = inversa_laplace(expresion)
