@@ -1,105 +1,102 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import sympy as sp
-from mpmath import invertlaplace, mp, mpc, mpf
+from sympy import symbols, apart, simplify, fraction, inverse_laplace_transform
+from mpmath import invertlaplace
+import mpmath as mp
 import numpy as np
 
 app = Flask(__name__)
-CORS(app) # Esto permite solicitudes desde cualquier origen
-
-# Ruta ligera para UptimeRobot
-@app.route('/')
-def home():
-    return '🟢 API de Laplace activa'
-
-@app.route('/ping')
-def ping():
-    return 'pong'
+CORS(app)
 
 s, t = sp.symbols('s t')
+mp.dps = 15
 
 def filtrar_numeros_pequenos(expresion, umbral=1e-10):
-    """Reemplaza números muy pequeños por 0 para evitar términos insignificantes en la respuesta."""
     return expresion.xreplace({n: 0 for n in expresion.atoms(sp.Number) if abs(n) < umbral})
 
 def aplicar_identidad_euler(expresion):
-    """Convierte cualquier número complejo en términos de senos y cosenos usando la Identidad de Euler"""
-    # Buscar exponenciales complejas
-    expresion = expresion.expand()  # Expandir para asegurarse de que las exponenciales estén separadas
-
-    for termino in expresion.atoms(sp.exp):  # Buscar términos de la forma e^(algo)
-        argumento = termino.args[0]  # Extraer el exponente
-        if argumento.has(sp.I):  # Si tiene parte imaginaria
-            a, b = sp.re(argumento), sp.im(argumento)  # Separar parte real e imaginaria
-            nueva_exp = sp.exp(a*t) * (sp.cos(b*t) + sp.I * sp.sin(b*t))  # Aplicar Euler
-            expresion = expresion.subs(termino, nueva_exp)  # Reemplazar en la ecuación
-
+    expresion = expresion.expand()
+    for termino in expresion.atoms(sp.exp):
+        argumento = termino.args[0]
+        if argumento.has(sp.I):
+            a, b = sp.re(argumento), sp.im(argumento)
+            nueva_exp = sp.exp(a*t) * (sp.cos(b*t) + sp.I * sp.sin(b*t))
+            expresion = expresion.subs(termino, nueva_exp)
     return sp.simplify(expresion)
 
-mp.dps = 15
-def inversa_laplace(expresion_str):
+def simplificar_por_residuos(H_str, umbral=0.01):
     try:
-        expresion = sp.sympify(expresion_str) / s  # Aplicar escalón automáticamente
-        print(f"\n🔹 Función recibida: {expresion_str}")
-        print(f"🔹 Función con escalón aplicado: {expresion}")
+        H = sp.sympify(H_str)
+        Hs = H / s
+        H_apart = apart(Hs, s, full=True)
 
-        # 🟠 Intentar con Fracciones Parciales
+        terminos = H_apart.as_ordered_terms()
+        terminos_filtrados = []
+        polos_descartados = []
+        polos_aceptados = []
+
+        for term in terminos:
+            num, denom = fraction(term)
+            if denom.is_polynomial(s) and num.is_number:
+                residuo = abs(num.evalf())
+                polos = denom.as_poly(s).all_roots()
+                polo = polos[0] if polos else "desconocido"
+
+                if residuo > umbral:
+                    terminos_filtrados.append(term)
+                    polos_aceptados.append((float(polo.evalf()), float(residuo)))
+                else:
+                    polos_descartados.append((float(polo.evalf()), float(residuo)))
+            else:
+                terminos_filtrados.append(term)
+
+        H_simplificada = simplify(sum(terminos_filtrados))
+
+        # Intentar métodos en orden
         try:
-            descomposicion = sp.apart(expresion, s)
-            print(f"✅ Método Usado: Fracciones Parciales")
-            print(f"🛠 Expresión descompuesta: {descomposicion}")
-            inversa = sp.inverse_laplace_transform(descomposicion, s, t)
-
-            inversa = aplicar_identidad_euler(inversa)
-            inversa = filtrar_numeros_pequenos(inversa)
-
+            h_t = inverse_laplace_transform(H_simplificada, s, t)
+            h_t = aplicar_identidad_euler(h_t)
+            h_t = filtrar_numeros_pequenos(h_t)
             return {
                 "tipo": "simbolico",
-                "resultado": str(inversa).replace("Heaviside(t)", "1")
+                "resultado": str(h_t).replace("Heaviside(t)", "1"),
+                "H_simplificada": str(H_simplificada),
+                "poles_aceptados": polos_aceptados,
+                "poles_descartados": polos_descartados
             }
-
-        except Exception as e:
-            print(f"❌ Fracciones Parciales fallaron: {e}")
-
-            # 🟡 Intentar con noconds=True
+        except Exception as e1:
             try:
-                inversa = sp.inverse_laplace_transform(expresion, s, t, noconds=True)
-                print(f"✅ Método Usado: noconds=True")
-
-                inversa = aplicar_identidad_euler(inversa)
-                inversa = filtrar_numeros_pequenos(inversa)
-
+                descomp = apart(H_simplificada, s)
+                h_t = inverse_laplace_transform(descomp, s, t)
+                h_t = aplicar_identidad_euler(h_t)
+                h_t = filtrar_numeros_pequenos(h_t)
                 return {
                     "tipo": "simbolico",
-                    "resultado": str(inversa).replace("Heaviside(t)", "1")
+                    "resultado": str(h_t).replace("Heaviside(t)", "1"),
+                    "H_simplificada": str(H_simplificada),
+                    "poles_aceptados": polos_aceptados,
+                    "poles_descartados": polos_descartados
                 }
-
-            except Exception as e:
-                print(f"⚠️ SymPy tampoco pudo (noconds=True): {e}")
-
-                # 🔴 Último Recurso: Método Numérico con mpmath
-                print(f"⚠️ Usando mpmath.invertlaplace como último recurso...")
-
+            except Exception as e2:
                 def laplace_func(s_num):
                     try:
-                        f = sp.lambdify(s, expresion, modules=["mpmath", "numpy"])
+                        f = sp.lambdify(s, H_simplificada, modules=["mpmath", "numpy"])
                         return f(s_num)
-                    except Exception as inner_e:
-                        print(f"Error al convertir con lambdify: {inner_e}")
+                    except:
                         return 0
 
                 try:
                     valores_t = np.linspace(0.01, 10, 100)
                     resultado_numerico = [float(invertlaplace(laplace_func, ti)) for ti in valores_t]
                     resultado_t = list(map(float, valores_t))
-
-                    print(f"✅ Método Usado: mpmath.invertlaplace")
-
                     return {
                         "tipo": "numerico",
-                        "puntos": list(zip(resultado_t, resultado_numerico))
+                        "puntos": list(zip(resultado_t, resultado_numerico)),
+                        "H_simplificada": str(H_simplificada),
+                        "poles_aceptados": polos_aceptados,
+                        "poles_descartados": polos_descartados
                     }
-
                 except Exception as final_e:
                     return {
                         "tipo": "error",
@@ -113,37 +110,33 @@ def inversa_laplace(expresion_str):
         }
 
 @app.route('/laplace', methods=['GET'])
-@cross_origin(origin="*")  # <- esto permite peticiones de GitHub Pages
+@cross_origin(origin="*")
 def calcular_laplace():
     expresion = request.args.get('expresion', "1 / (s + 1)")
-    resultado = inversa_laplace(expresion)
-    
-    # Si hay un error
-    if resultado.get("tipo") == "error":
-        return jsonify({
-            "tipo": "error",
-            "mensaje": resultado.get("mensaje", "Error desconocido")
-        })
+    resultado = simplificar_por_residuos(expresion, umbral=0.01)
 
-    # Si es simbólico
+    if resultado.get("tipo") == "error":
+        return jsonify({"tipo": "error", "mensaje": resultado.get("mensaje", "Error desconocido")})
+
     if resultado.get("tipo") == "simbolico":
         return jsonify({
             "tipo": "simbolico",
-            "resultado": resultado.get("resultado")
+            "resultado": resultado["resultado"],
+            "H_simplificada": resultado["H_simplificada"],
+            "poles_aceptados": resultado["poles_aceptados"],
+            "poles_descartados": resultado["poles_descartados"]
         })
 
-    # Si es numérico
     if resultado.get("tipo") == "numerico":
         return jsonify({
             "tipo": "numerico",
-            "puntos": resultado.get("puntos")
+            "puntos": resultado["puntos"],
+            "H_simplificada": resultado["H_simplificada"],
+            "poles_aceptados": resultado["poles_aceptados"],
+            "poles_descartados": resultado["poles_descartados"]
         })
 
-    # Respuesta desconocida
-    return jsonify({
-        "tipo": "error",
-        "mensaje": "Respuesta inesperada del servidor"
-    })
+    return jsonify({"tipo": "error", "mensaje": "Respuesta inesperada del servidor"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
