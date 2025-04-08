@@ -968,18 +968,27 @@
       console.log("expresion:",expresion)
       
       // Verificar si la expresión es válida y no contiene caracteres incorrectos como "?"
-      if (!expresion || expresion.includes("?")) {
+      if (!expresion || expresion === "?" || !expresion.includes("=")) {
         console.error("La expresión es inválida o no se ha definido correctamente.");
         return;
       }
       let expresionClean=limpiarExpresion(expresion);
+      //let expresionClean="(101.92015*s^2 + 34.50504*s + 286.42539) / (s^4 + 22.00534*s^3 + 142.93083*s^2 + 54.51038*s + 286.42539)"
       console.log("expresion limpia:",expresionClean)
-
-      //let expresion ="(0.2094*s^2 + 0.0049*s + 0.0001) / (s^4 + 2.3958*s^3 + 0.287*s^2 + 0.0055*s + 0.0001)";
+      
+      // Validación final antes de enviar
+      if (!expresionClean || expresionClean.includes("undefined") || expresionClean.trim() === "") {
+        console.error("Expresión no válida después de limpiar.");
+        return;
+      }
+      
       let url = "https://flask-laplace.onrender.com/laplace?expresion=" + encodeURIComponent(expresionClean);
 
       fetch(url)
-          .then(response => response.json())
+          .then(response => {
+            if (!response.ok) throw new Error("Error de servidor: " + response.status);
+            return response.json();
+          })
           .then(data => {
               let respuesta = data.resultado;
               
