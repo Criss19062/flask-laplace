@@ -993,7 +993,8 @@
             console.error("Error al calcular la inversa de Laplace:", data.mensaje);
             return;
           }
-      
+          console.log(`Método utilizado (${data.tipo}): ${data.metodo}`);
+          
           if (data.tipo === "simbolico") {
             // Mostrar la expresión simbólica como Ht(t)
             let respuesta = data.resultado;
