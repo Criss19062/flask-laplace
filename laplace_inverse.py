@@ -51,12 +51,15 @@ def intentar_apart(expr, timeout=5):
 @cross_origin(origin="*")
 def calcular_laplace():
     expresion = request.args.get('expresion', "1 / (s + 1)")
+    Tss = float(request.args.get('Tss', 10))  # Valor por defecto si no se envía
+    t_final = Tss * 1.4
+    n_puntos = 200  # puedes ajustar este número según la resolución deseada
 
     try:
         H = sp.sympify(expresion)
         Hs = H / s  # ya estamos agregando el escalón aquí
 
-        # Intentar siempre el método simbólico (aunque sea de orden alto)
+        # Intentar métodos simbólicos
         try:
             h_t, metodo1 = intentar_simbolico(Hs)
             return jsonify({
@@ -65,7 +68,7 @@ def calcular_laplace():
                 "resultado": str(h_t).replace("Heaviside(t)", "1"),
                 "H_simplificada": str(Hs)
             })
-        except Exception as e1:
+        except Exception:
             try:
                 descomp, metodo2 = intentar_apart(Hs)
                 h_t, metodo3 = intentar_simbolico(descomp)
@@ -75,27 +78,25 @@ def calcular_laplace():
                     "resultado": str(h_t).replace("Heaviside(t)", "1"),
                     "H_simplificada": str(Hs)
                 })
-            except Exception as e2:
+            except Exception:
                 pass  # continuar con métodos numéricos
 
-        # Si fallo simbólico → método numérico (scipy)
+        # Método numérico con scipy
         try:
             num, den = fraction(Hs)
-            num_poly = sp.Poly(num, s)
-            den_poly = sp.Poly(den, s)
-            num_coeffs = [float(c) for c in num_poly.all_coeffs()]
-            den_coeffs = [float(c) for c in den_poly.all_coeffs()]
-
+            num_coeffs = [float(c) for c in sp.Poly(num, s).all_coeffs()]
+            den_coeffs = [float(c) for c in sp.Poly(den, s).all_coeffs()]
             system = signal.TransferFunction(num_coeffs, den_coeffs)
-            t_vals, y_vals = signal.step(system)
+            t_vals = np.linspace(0.01, t_final, n_puntos)
+            t_out, y_vals = signal.step(system, T=t_vals)
 
             return jsonify({
                 "tipo": "numerico",
                 "metodo": "scipy.step",
-                "puntos": list(zip(t_vals.tolist(), y_vals.tolist())),
+                "puntos": list(zip(t_out.tolist(), y_vals.tolist())),
                 "H_simplificada": str(Hs)
             })
-        except Exception as e3:
+        except Exception:
             try:
                 def laplace_func(s_num):
                     try:
@@ -104,14 +105,13 @@ def calcular_laplace():
                     except:
                         return 0
 
-                valores_t = np.linspace(0.01, 10, 100)
-                resultado_numerico = [float(invertlaplace(laplace_func, ti)) for ti in valores_t]
-                resultado_t = list(map(float, valores_t))
+                t_vals = np.linspace(0.01, t_final, n_puntos)
+                y_vals = [float(invertlaplace(laplace_func, ti)) for ti in t_vals]
 
                 return jsonify({
                     "tipo": "numerico",
                     "metodo": "mpmath.invertlaplace",
-                    "puntos": list(zip(resultado_t, resultado_numerico)),
+                    "puntos": list(zip(t_vals.tolist(), y_vals)),
                     "H_simplificada": str(Hs)
                 })
             except Exception as final_e:
@@ -125,6 +125,7 @@ def calcular_laplace():
             "tipo": "error",
             "mensaje": f"Error general: {str(e)}"
         })
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
