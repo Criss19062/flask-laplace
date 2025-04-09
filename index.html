@@ -982,7 +982,7 @@
         return;
       }
       
-      let url = "https://flask-laplace.onrender.com/laplace?expresion=" + encodeURIComponent(expresionClean);
+      let url = `https://flask-laplace.onrender.com/laplace?expresion=${encodeURIComponent(expresion)}&Tss=${Tss}`;
       fetch(url)
         .then(response => {
           if (!response.ok) throw new Error("Error de servidor: " + response.status);
