@@ -993,26 +993,43 @@
             console.error("Error al calcular la inversa de Laplace:", data.mensaje);
             return;
           }
+      
           console.log(`Método utilizado (${data.tipo}): ${data.metodo}`);
-          
+      
           if (data.tipo === "simbolico") {
             // Mostrar la expresión simbólica como Ht(t)
             let respuesta = data.resultado;
             console.log("H(t) simbólico:", respuesta);
             let comando = `Ht(t) = ${respuesta}`;
             ggbApplet.evalCommand(comando);
-          } 
-          
-          else if (data.tipo === "numerico") {
-            let puntos = data.puntos; // Array de objetos con t e y
       
-            // Crear una lista de puntos en GeoGebra
-            let listaGeoGebra = puntos.map(p => `(${p.t}, ${p.y})`).join(", ");
+          } else if (data.tipo === "numerico") {
+            let puntos = data.puntos;
+      
+            // Filtrar posibles valores inválidos
+            let puntosValidos = puntos.filter(p =>
+              typeof p[0] === "number" &&
+              typeof p[1] === "number" &&
+              isFinite(p[0]) &&
+              isFinite(p[1])
+            );
+      
+            // Crear string para GeoGebra
+            let listaGeoGebra = puntosValidos
+              .map(p => `(${p[0].toFixed(5)}, ${p[1].toFixed(5)})`)
+              .join(", ");
+      
             let comando = `ListaNum = {${listaGeoGebra}}`;
             ggbApplet.evalCommand(comando);
       
-            // También graficar la lista como curva si se desea
-            ggbApplet.evalCommand("Curve( Element( ListaNum, k, 1 ), Element( ListaNum, k, 2 ), k, 1, Length( ListaNum ) )");
+            // Mostrar la lista en consola del navegador
+            console.log("ListaNum enviada a GeoGebra:", comando);
+      
+            ggbApplet.evalCommand(
+              "Curve( Element( ListaNum, k, 1 ), Element( ListaNum, k, 2 ), k, 1, Length( ListaNum ) )"
+            );
+      
+            console.log("Método numérico usado:", data.metodo);
           }
         })
         .catch(error => console.error("Error en la petición:", error));
