@@ -6,9 +6,6 @@ from mpmath import invertlaplace
 import mpmath as mp
 import numpy as np
 
-app = Flask(__name__)
-CORS(app)
-
 # Ruta ligera para UptimeRobot
 @app.route('/')
 def home():
@@ -18,27 +15,16 @@ def home():
 def ping():
     return 'pong'
 
+app = Flask(__name__)
+CORS(app)
+
 s, t = sp.symbols('s t')
 mp.dps = 15
-
-def filtrar_numeros_pequenos(expresion, umbral=1e-10):
-    return expresion.xreplace({n: 0 for n in expresion.atoms(sp.Number) if abs(n) < umbral})
-
-def aplicar_identidad_euler(expresion):
-    expresion = simplify(expresion)  # Mejora clave: combinar términos exponenciales antes
-    for termino in expresion.atoms(sp.exp):
-        argumento = termino.args[0]
-        if argumento.has(sp.I):
-            a = sp.re(argumento)
-            b = sp.im(argumento)
-            nueva_exp = sp.exp(a * t) * (sp.cos(b * t) + sp.I * sp.sin(b * t))
-            expresion = expresion.subs(termino, nueva_exp)
-    return simplify(expresion)
 
 def simplificar_por_residuos(H_str, umbral=0.01):
     try:
         H = sp.sympify(H_str)
-        Hs = H / s
+        Hs = H / s  # ya estamos agregando el escalón aquí
         H_apart = apart(Hs, s, full=True)
 
         terminos = H_apart.as_ordered_terms()
@@ -66,9 +52,6 @@ def simplificar_por_residuos(H_str, umbral=0.01):
         # Intentar métodos en orden
         try:
             h_t = inverse_laplace_transform(H_simplificada, s, t)
-            h_t = simplify(h_t)  # Agregado para evitar redundancias en exponenciales
-            h_t = aplicar_identidad_euler(h_t)
-            h_t = filtrar_numeros_pequenos(h_t)
             return {
                 "tipo": "simbolico",
                 "resultado": str(h_t).replace("Heaviside(t)", "1"),
@@ -80,9 +63,6 @@ def simplificar_por_residuos(H_str, umbral=0.01):
             try:
                 descomp = apart(H_simplificada, s)
                 h_t = inverse_laplace_transform(descomp, s, t)
-                h_t = simplify(h_t)
-                h_t = aplicar_identidad_euler(h_t)
-                h_t = filtrar_numeros_pequenos(h_t)
                 return {
                     "tipo": "simbolico",
                     "resultado": str(h_t).replace("Heaviside(t)", "1"),
