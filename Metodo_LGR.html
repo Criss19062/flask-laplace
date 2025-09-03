@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<title>Controlador PID con GeoGebra</title>
+<script src="https://www.geogebra.org/apps/deployggb.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.2/math.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="backend_url.js"></script><!-- Cargar la URL generada por ngrok automáticamente -->
+<style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: sans-serif;
+      background-color: #f8f9fa;
+      overflow-x: hidden;
+    }
+
+    .ventanaModal {
+        width: 90%;
+        max-width: 900px; /* Antes estaba en 500px */
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        max-height: 80vh;
+        overflow-y: auto;
+        background-color: white;
+        border: 2px solid #888;
+        border-radius: 10px;
+        padding: 20px;
+        z-index: 1001;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    #tablaDatos td:nth-child(2) {
+        word-break: break-word;
+        white-space: pre-wrap;
+        text-align: justify;
+    }
+    #tablaDatos th:nth-child(1),
+    #tablaDatos td:nth-child(1) {
+    width: 30%; /* Columna de Descripción */
+    }
+    #tablaDatos th:nth-child(2),
+    #tablaDatos td:nth-child(2) {
+    width: 50%;/* Columna de Valor (más ancha) */
+    word-break: break-word;     /* Rompe palabras largas si es necesario */
+    white-space: pre-wrap;      /* Mantiene saltos de línea si hay */
+    text-align: justify;        /* Justifica el contenido */
+    }
+
+    #contenedor {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      column-gap: 10px;
+      flex-wrap: nowrap;
+      justify-content: center;
+    }
+
+    #geogebra-container {
+      width: 600px;
+      height: 500px;
+      border: 2px solid #bbb;
+      border-radius: 8px;
+      background-color: #e8f0fe;
+    }
+
+    #panel-central {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: fit-content;
+    }
+
+    .cuadro {
+      width: 305px;
+      height: 320px;
+      border: 2px solid #bbb;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-weight: bold;
+      font-size: 16px;
+      padding: 8px;
+    }
+
+    #cuadro-izquierdo {
+      background-color: #dceeff;
+    }
+
+    #cuadro-derecho {
+      background-color: #e0ffe0;
+    }
+
+    .titulo-cuadro {
+      font-weight: bold;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    #FT-content, #CT-content {
+      width: 100%;
+      font-size: 16px;
+    }
+
+    label {
+      font-weight: bold;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 4px;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    #FT-display, #CT-display {
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 14px;
+      width: 100%;
+      text-align: left;
+    }
+
+
+    #iniciar-lgr-btn, #actualizar-controlador-btn, #btn-resultados-finales {
+      width: 305px;
+      height: 40px;
+      background-color: #28a745;
+      color: white;
+      font-weight: bold;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+
+    #alphaInput {
+      width: 90%;
+      margin: 5px auto;
+      display: block;
+      padding: 5px;
+      text-align: center;
+    }
+
+    .fraction {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .fraction span {
+      display: block;
+    }
+
+    .denominator {
+      border-top: 1px solid black;
+      padding-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align:center; font-size: 24px; margin-bottom: 10px;">
+  Método del lugar geometrico de las raíces
+  </h1>
+  <div id="contenedor">
+    <div id="geogebra-container"></div>
+
+    <div id="panel-central">
+
+      <!-- FILA HORIZONTAL: Cuadro izquierdo y derecho alineados uno al lado del otro -->
+      <div style="display: flex; justify-content: center; gap: 30px;">
+        
+        <!-- Cuadro izquierdo: función de transferencia del proceso -->
+        <div class="cuadro" id="cuadro-izquierdo">
+          <div class="titulo-cuadro" style="margin-top: 5px;">F.T. del proceso</div>
+          <div id="mensaje-inicial" style="color:#c0392b; font-weight:bold; text-align:center; font-size: 16px; margin-top: 4px; margin-bottom: 20px;">
+            Modifica la función de planta G(s)
+          </div>
+          <div id="FT-content">
+            <label for="numeradorInput">Numerador (coef. separados por coma):</label>
+            <input id="numeradorInput" placeholder="Ej: 0, 0, 1" type="text" style="margin-bottom: 15px;" />
+            <label for="denominadorInput">Denominador (coef. separados por coma):</label>
+            <input id="denominadorInput" placeholder="Ej: 1, 0.6, 1" type="text" style="margin-bottom: 15px;" />
+            <div id="FT-display">G(s) = ?</div>
+          </div>
+        </div>
+
+        <!-- Cuadro derecho: función de transferencia del controlador -->
+        <div class="cuadro" id="cuadro-derecho">
+          <div class="titulo-cuadro" style="margin-top: 5px;">F. T. del controlador</div>
+          <div id="mensaje-inicial" style="color:#c0392b; font-weight:bold; text-align:center; font-size: 16px; margin-top: 4px; margin-bottom: 20px;">
+            Modifica el tipo de Controlador C(s)
+          </div>
+          <div id="CT-content">
+            
+            <label for="tipo-controlador">Tipo de Controlador:</label>
+            <select id="tipo-controlador">
+              <option value="P" selected>P</option>
+              <option value="PI">PI</option>
+              <option value="PD">PD</option>
+              <option value="PID">PID</option>
+              <option value="NINGUNO">NINGUNO</option>
+            </select>
+            
+
+            <!-- Contenedor de dos columnas con menor separación -->
+            <div style="display: flex; justify-content: center; gap: 30px; margin-top: 20px;">
+
+              <!-- Columna izquierda: Kc y Td -->
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label style="font-weight: bold; font-size: 13px; width: 30px;" title="Ganancia proporcional">Kc :</label>
+                  <input type="text" id="KcInput" value="1.6" title="Ganancia proporcional"
+                        disabled style="width: 60px; height: 22px; font-size: 13px; text-align: center; ">
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="TdInput" style="font-size: 13px; width: 30px;" title="Tiempo derivativo">Td :</label>
+                  <input id="TdInput" type="number"  step="0.01" title="Tiempo derivativo"
+                        style="width: 60px; height: 22px; font-size: 13px; text-align: center; ">
+                </div>
+              </div>
+
+              <!-- Columna derecha: Ti y Tf -->
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="TiInput" style="font-size: 13px; width: 30px;" title="Tiempo integral">Ti :</label>
+                  <input id="TiInput" type="number"  step="0.01"
+                        style="width: 60px; height: 22px; font-size: 13px; text-align: center;" title="Tiempo integral">
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="TfInput" style="font-size: 13px; width: 30px;" title="Valor del filtro derivativo [min: 0 max: 0.1]">⍺ :</label>
+                  <input id="TfInput" type="number"  step="0.01" min="0.0" max="0.1"
+                        title="Valor del filtro derivativo [min: 0 max: 0.1]" style="width: 60px; height: 22px; font-size: 13px; text-align: center;">
+                </div>
+              </div>
+
+            </div>
+            
+            <!--Display que muestra la expresion de C(s)-->
+            <div id="CT-display" style="margin-top: 40px; text-align: left;">
+              C(s) = ?
+            </div>
+          </div>
+        </div>
+
+      </div> <!-- fin de fila horizontal de cuadros -->
+
+      <!-- Fila horizontal con ambos botones perfectamente alineados -->
+      <div style="display: flex; justify-content: center; gap: 20px; margin-top: 3px;">
+        <button id="iniciar-lgr-btn" style="height: 40px;">Iniciar LGR</button>
+        <button id="actualizar-controlador-btn" style="height: 40px;">Actualizar controlador</button>
+        
+      </div>
+      <!-- Botón resultados finales debajo, sin recuadro -->
+      <div style="margin-top: 15px; text-align: left;">
+        <button id="btn-resultados-finales" style="height: 40px;" onclick="Resultadosfinales()">Resultados finales</button>
+      </div>
+
+    </div>
+  </div>
+    <!-- Capa oscura -->
+    <div id="modalResultados" style="
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);">
+
+        <!-- Ventana flotante centrada -->
+        <div class="ventanaModal">
+            <h2 style="text-align: center;">Datos obtenidos</h2>
+            <table id="tablaDatos" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; border-bottom: 1px solid #ccc;">Descripción</th>
+                        <th style="text-align:left; border-bottom: 1px solid #ccc;">Valor</th>
+                    </tr>
+                </thead>
+                <tbody id="listaDatos"></tbody>
+            </table>
+            <div style="margin-top: 20px; display: flex; justify-content: space-between;">
+                <button onclick="cerrarModal()">Cerrar</button>
+                <button onclick="exportarDatosExcel()">Exportar datos a Excel</button>
+            </div>
+        </div>
+    </div>
+
+    
+
+<script>
+    //DOMContentLoaded 
+     window.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("numeradorInput").value = "0,0.077,154.535";
+        document.getElementById("denominadorInput").value = "1,12.0318,154.287";
+        
+        // Llama a actualizarG solo si GeoGebra ya está cargado
+        if (typeof actualizarG === "function") {
+          actualizarG();
+        }
+
+        //Bloquear las cajas de entrada ki y kd
+        
+        const TiInput = document.getElementById("TiInput");
+        const TdInput = document.getElementById("TdInput");
+        const TfInput = document.getElementById("TfInput")
+        if (TiInput) TiInput.disabled = true;
+        if (TdInput) TdInput.disabled = true;
+        if (TfInput) TfInput.disabled = true;
+        
+    });
+    
+    //Cargue de la vista de Geogebra
+    const params = {
+      id: "ggbApplet",
+      appName: "classic",
+      width: 700,
+      height: 550,
+      showAlgebraInput: true,
+      showAlgebraView: true,
+      showToolbar: true,
+      showMenuBar: true,
+      showResetIcon: true,
+      enableShiftDragZoom: true,
+      useBrowserForJS: false,
+      language: "en",
+      appletOnLoad: ggbOnInit,
+    };
+
+    let ggbApplet;
+    let listenerPRegistrado = false;
+    let listenerRegistrado = false;
+    let tipoControlador = "P" //Valor por defecto.
+    
+    function ggbOnInit(api) {
+      ggbApplet = api;
+      console.log("GeoGebra cargado correctamente ✅");
+      ggbApplet.setPerspective("G/D");
+      
+      setTimeout(() => {
+
+        //Limpiar la interfaz de Geogebra
+        //ggbApplet.reset();
+        if(ggbApplet.exists("Kc")){
+          ggbApplet.evalCommand("Delete[Kc, H, C, A, B]");
+        }  
+        ggbApplet.setRounding(4); // Redondear a 4 cifras decimales
+        
+        // Crear sliders del controlador PID
+        ggbApplet.evalCommand("Kc = Slider(0.01, 100, 2)");
+        ggbApplet.setValue("Kc", 2.06)
+        document.getElementById("KcInput").value = ggbApplet.getValue("Kc");
+        actualizarCT_Display();
+        
+        //Registra el evento de mover el Slider Kc con ActualizarC
+        if (!listenerRegistrado) {
+            ggbApplet.registerObjectUpdateListener("Kc", () => {
+              const kc = ggbApplet.getValue("Kc");
+              document.getElementById("KcInput").value = kc;
+              actualizarCT_Display();
+            });
+            listenerRegistrado = true;
+        }
+
+
+        //Detectar cambios futuros en Ti, Td, alpha
+        document.getElementById("TiInput").addEventListener("input", actualizarCT_Display);
+        document.getElementById("TdInput").addEventListener("input", actualizarCT_Display);
+        document.getElementById("TfInput").addEventListener("input", actualizarCT_Display);
+
+      }, 500); // Espera de 500 milisegundos
+      
+      //Registrar futuros eventos en el seleccionador
+      const selector = document.getElementById("tipo-controlador");
+      if (selector) {
+        selector.addEventListener("change", seleccionarControlador);
+      }
+
+      // vincular boton iniciarLGR con funcion iniciarLGR
+      document.getElementById("iniciar-lgr-btn").addEventListener("click", iniciarLGR);
+      
+      //Vincular boton actualizarControlador con funcion ActualizarC
+      document.getElementById("actualizar-controlador-btn").addEventListener("click", iniciarLGR);
+
+    }
+
+    window.addEventListener("load", () => {
+      const applet = new GGBApplet(params, true);
+      applet.inject("geogebra-container");
+
+
+    });
+
+    //Funcion para mostrar Cs en el display
+    function actualizarCT_Display() {
+      
+      const CTDisplay = document.getElementById("CT-display");
+      try {
+        
+        const kc = parseFloat(document.getElementById("KcInput").value) || 1;
+        const tiInput =  parseFloat(document.getElementById("TiInput").value)|| 1;
+        const tdInput =  parseFloat(document.getElementById("TdInput").value)|| 1;
+        const alpha=  parseFloat(document.getElementById("TfInput").value)|| 0;
+        
+        console.log(kc,tiInput, tdInput, alpha)
+               
+        const kcFixed = kc
+        const tiFixed = tiInput
+        const tdFixed = tdInput
+        const alphaTd = (alpha * tdInput);
+
+        if(tipoControlador==="NINGUNO"){
+          CTDisplay.innerHTML = `
+          <div>C(s) = 1 </div>`
+        }else if(tipoControlador==="P"){
+          CTDisplay.innerHTML = `
+            
+            <div style="white-space: nowrap; overflow-x: auto;">
+              C(s) = ${kcFixed} 
+            </div>`;  
+        }else if(tipoControlador==="PD"){
+          CTDisplay.innerHTML = `
+            
+            <div style="white-space: nowrap; overflow-x: auto;">
+              C(s) = ${kcFixed} ( 1 + 
+              <span style="display:inline-block; vertical-align:middle; text-align:center;">
+                <span style="display:block;">${tdFixed}s</span>
+                <span style="display:block; border-top:1px solid black;">${alphaTd}s + 1</span>
+              </span>
+              )
+            </div>`;
+        }else if(tipoControlador==="PI"){
+          CTDisplay.innerHTML = `
+            
+            <div style="white-space: nowrap; overflow-x: auto;">
+              C(s) = ${kcFixed} ( 1 + 
+              <span style="display:inline-block; vertical-align:middle; text-align:center;">
+                <span style="display:block;">1</span>
+                <span style="display:block; border-top:1px solid black;">${tiFixed}s </span>
+              </span>
+              )
+            </div>`
+
+        }else if(tipoControlador==="PID"){
+          CTDisplay.innerHTML = `
+            
+            <div style="white-space: nowrap; overflow-x: auto;">
+              C(s) = ${kcFixed} ( 1 + 
+              <span style="display:inline-block; vertical-align:middle; text-align:center;">
+                <span style="display:block;">1</span>
+                <span style="display:block; border-top:1px solid black;">${tiFixed}s</span>
+              </span>
+              + 
+              <span style="display:inline-block; vertical-align:middle; text-align:center;">
+                <span style="display:block;">${tdFixed}s</span>
+                <span style="display:block; border-top:1px solid black;">${alphaTd}s + 1</span>
+              </span>
+              )
+            </div>`;
+        }  
+      } catch (error) {
+        console.error("Error al mostrar C(s):", error);
+        CTDisplay.innerHTML = `<span style="color:red;">Error al mostrar C(s)</span>`;
+      }
+    }
+   
+    // ------------Definición de coeficientes FT del sistema G(s)----------------
+    let numeradorG = [];
+    let denominadorG = [];
+    
+    
+    function actualizarG() {
+        try {
+        let numText = document.getElementById("numeradorInput").value.trim();
+        let denText = document.getElementById("denominadorInput").value.trim();
+        if (!numText || !denText) return;
+
+        numeradorG = numText.split(',').map(x => parseFloat(x.trim()));
+        denominadorG = denText.split(',').map(x => parseFloat(x.trim()));
+
+        // Verificar si hay valores inválidos
+        if (numeradorG.some(isNaN) || denominadorG.some(isNaN)) {
+            document.getElementById("FT-display").innerText = "⚠️ Verifique los coeficientes";
+            return;
+        }
+
+        // Ajustar el tamaño del numerador si tiene menos de 3 términos
+        if (numeradorG.length === 1) {
+            numeradorG = Array(2).fill(0).concat(numeradorG); // Se rellena con dos ceros al inicio
+        } else if (numeradorG.length === 2) {
+            numeradorG = [0].concat(numeradorG); // Se rellena con un cero al inicio
+        }
+
+        // Convertir a notación de función de transferencia
+        const numStr = numeradorG.map((coef, i) => {
+            const grado = numeradorG.length - i - 1;
+            return `${coef}${grado > 0 ? `s${grado > 1 ? `^${grado}` : ""}` : ""}`;
+        }).join(" + ");
+
+        const denStr = denominadorG.map((coef, i) => {
+            const grado = denominadorG.length - i - 1;
+            return `${coef}${grado > 0 ? `s${grado > 1 ? `^${grado}` : ""}` : ""}`;
+        }).join(" + ");
+
+        // Mostrar en pantalla
+        document.getElementById("FT-display").innerHTML = `
+        <div style="display: flex; align-items: center; text-align: center; gap: 5px;">
+            <span style="font-weight: bold;">G(s) =</span>
+            <div class='fraction' style="display: inline-block; text-align: center;">
+                <span>${numStr}</span>
+                <span class='denominator'>${denStr}</span>
+            </div>
+        </div>`;
+        } catch (e) {
+        document.getElementById("FT-display").innerText = `⚠️ Error: ${e.message}`;
+        }
+    }
+
+    document.getElementById("numeradorInput").addEventListener("input", actualizarG);
+    document.getElementById("denominadorInput").addEventListener("input", actualizarG);
+    
+    
+    
+    function ocultarExcepto() {
+        const totalObjetos = ggbApplet.getAllObjectNames();
+        const objetosAConservar = ["Kc","P"];
+
+        for (let i = 0; i < totalObjetos.length; i++) {
+            const nombre = totalObjetos[i];
+            if (/^P_\{\d+\}$/.test(nombre) || /^LGR_\d+$/.test(nombre)) {
+                objetosAConservar.push(nombre);
+            }
+        }
+
+        // Ocultar todo lo que no está en la lista de objetos a conservar
+        for (let i = 0; i < totalObjetos.length; i++) {
+            const nombre = totalObjetos[i];
+            const debeSerVisible = objetosAConservar.includes(nombre);
+            ggbApplet.setVisible(nombre, debeSerVisible);
+        }
+    }
+
+
+
+   
+
+    // Refresca el LGR haciendo un micro-cambio en Kc
+    function refrescarLGR() {
+        let kc = ggbApplet.getValue("Kc");
+        ggbApplet.setValue("Kc", kc + 0.00001);
+        ggbApplet.setValue("Kc", kc);
+    }
+
+    function seleccionarControlador() {
+      // Obtener tipo de controlador elegido
+      tipoControlador = document.getElementById("tipo-controlador").value;
+
+      const TiInput = document.getElementById("TiInput");
+      const TdInput = document.getElementById("TdInput");
+      const TfInput = document.getElementById("TfInput");
+      
+      // Desbloquear según el tipo de controlador
+      if (tipoControlador === "PI") {
+        TiInput.disabled = false;
+        TdInput.disabled = true;
+        TiInput.value = 1;
+      } else if (tipoControlador === "PD") {
+        TiInput.disabled = true;
+        TdInput.disabled = false;
+        TfInput.disabled = false;
+        TdInput.value = 1;
+        TfInput.value = 0.01;
+      } else if (tipoControlador === "PID") {
+        TiInput.disabled = false;
+        TdInput.disabled = false;
+        TfInput.disabled = false;
+        TfInput.value = 0.01;
+        TiInput.value = 1;
+        TdInput.value = 1;
+      } else {
+        // Caso "P" o "NINGUNO"
+        TiInput.disabled = true;
+        TdInput.disabled = true;
+        TfInput.disabled = true;
+        ggbApplet.setValue("Kc",1);
+        ocultarExcepto();
+      }
+      actualizarCT_Display();
+    }
+    
+    let Ti, Td, alpha;
+    function actualizarC() {
+        if (!tipoControlador) return;
+        //----------Obtener valores directamente de los input HTML----------
+        Ti = parseFloat(document.getElementById("TiInput").value) || 1e-6;
+        Td = parseFloat(document.getElementById("TdInput").value) || 0;
+        alpha = parseFloat(document.getElementById("TfInput").value) || 0;
+
+        //----------Crear expresion C(s) segun el tipo de controlador-------
+        let C_expr;
+        if (tipoControlador === "NINGUNO") { // Caso de Controlador constante
+          ggbApplet.setValue("Kc", 1);; 
+          C_expr = "Kc"
+        } else {
+          // Construir expresión del controlador
+          C_expr = `Kc * (1`;
+          if (tipoControlador === "PI") {             //Caso de controlador PI
+            C_expr += ` + 1/(${Ti}*s)`;
+          } else if (tipoControlador === "PD") {      //Caso del controlador PD
+            C_expr += ` + (${Td}*s)/(${alpha}*${Td}*s + 1)`;
+          } else if (tipoControlador === "PID") {     //Caso del controlador PID
+            C_expr += ` + 1/(${Ti}*s) + (${Td}*s)/(${alpha}*${Td}*s + 1)`;
+          }
+          C_expr += `)`;
+        }
+        try {
+            ggbApplet.evalCommand(`C(s) = ${C_expr}`); //Envio a geogebra de C(s)
+            actualizarCT_Display();                    //Actualizacion en display
+            ocultarExcepto();                          //Ocultar objetos innecesarios
+        } catch (e) {
+            alert("⚠️ Error al evaluar C(s): " + e.message);
+        }
+        console.log("C(s) =", C_expr);
+        
+        //--------TRUCO para forzar actualización del LGR--------
+        //Detectar evento o cambio en Kc con Listener
+        if (listenerRegistrado) {
+            ggbApplet.unregisterObjectUpdateListener("Kc",actualizarC);
+             listenerRegistrado = false;
+        }
+        
+        //-------Pequeño cambio en Kc para forzar actualizacion de LGR
+        const kc_actual = ggbApplet.getValue("Kc");
+        ggbApplet.setValue("Kc", kc_actual + 1e-10);
+        ggbApplet.setValue("Kc", kc_actual);
+       
+        if (!listenerRegistrado) {
+             ggbApplet.registerObjectUpdateListener("Kc", actualizarC);
+             listenerRegistrado = true;
+        }
+    }
+        //-------- Ya están listos los sliders: continuar normalmente-----------
+        console.log(" Sliders listos. Calculando G(s), C(s), H(s)...");
+        console.log("numeradorG:", numeradorG)
+        console.log("denominadorG:", denominadorG)
+
+    function iniciarLGR(){
+
+        // ---------Esperar a que GeoGebra registre los sliders-----------------
+        if (!ggbApplet.exists("Kc")) {
+            console.warn("⏳ Esperando sliders...");
+            setTimeout(iniciarLGR, 200);  // vuelve a intentar más tarde
+            return;
+        }
+        //--------Almacenamiento en variables de los coeficientes de G(s)-------        
+        ordenNum = numeradorG.length - 1;             //Variable orden de asignacion numerador
+        ordenDen = denominadorG.length - 1;           //Variable orden de asignacion denominador
+        a2 = (ordenNum >= 2 ? numeradorG[ordenNum - 2] : 0);          //Coeficiente de s^2
+        a1 = (ordenNum >= 1 ? numeradorG[ordenNum - 1] : 0);          //Coeficiente de s^1
+        a0 = (numeradorG[ordenNum]);                                  //Coeficiente de s^0
+
+        b2 = (ordenDen >= 2 ? denominadorG[ordenDen - 2] : 0);        //Coeficiente de s^2
+        b1 = (ordenDen >= 1 ? denominadorG[ordenDen - 1] : 0);        //Coeficiente de s^1
+        b0 = (denominadorG[ordenDen]);                                //Coeficiente de s^0 
+        console.log("coef. numerador G= ",a2, a1, a0,"coef. denominador G= ",b2, b1, b0);
+
+        // -------------Definir funciones G(s)-----------------------------------
+        ggbApplet.evalCommand(`G(s) =(${a2}*s^2 +${a1}*s +${a0})/(${b2}*s^2 +${b1}*s +${b0})`);
+        ocultarExcepto();
+        console.log(`→ G(s): (${a2}*s^2 + ${a1}*s + ${a0}) / (${b2}*s^2 + ${b1}*s + ${b0})`);
+
+        actualizarC();            //Llamado de funcion actualizar C para calcular controlador
+        ocultarExcepto();
+        //------------------------Definir H(s)----------------------------
+        paso1();
+        
+        function paso1(){
+          const lazo="cerrado";         //Escoger Tipo de funcion de lazo "abierto" o "cerrado"
+          
+          if (!ggbApplet.exists("G") || !ggbApplet.exists("C")) {
+            console.warn("G o C no están definidos todavía");
+            return;
+          }
+
+          // Creacion de funcion de lazo abierto o cerrado
+          if(lazo==="cerrado"){
+            ggbApplet.evalCommand(`H(s) = Expand((G*C) / (1 + (G * C)))`); //H(s) de lazo cerrado
+          }
+          if(lazo==="abierto"){
+            ggbApplet.evalCommand(`H(s) = Expand((G*C))`)     //H(s) de lazo abierto
+            ocultarExcepto();
+          }
+          
+          setTimeout(() => {
+            if (ggbApplet.exists("H")) {
+              paso2();
+            } else {
+              console.warn(" H(s) no se definió correctamente en GeoGebra");
+            }
+          }, 400);
+
+        }
+        
+        // Normalizar H(s) y definir polinomio característico
+        function paso2() {
+          ggbApplet.evalCommand("numH = Numerator(H)");
+          ggbApplet.evalCommand("demH = Denominator(H)");
+          ocultarExcepto();
+          esperarGrado();
+          // ggbApplet.evalCommand("coefnumH = Coefficients[numH]");
+          // ggbApplet.evalCommand("coefdemH = Coefficients[demH]");
+          // ggbApplet.evalCommand("gradnumH = Degree(numH)");
+          // ggbApplet.evalCommand("graddemH = Degree(demH)");
+          // setTimeout(paso3, 800);
+        }
+
+        // function paso3() {
+        //   ggbApplet.evalCommand("CoefMax = Element[coefdemH, 1]");
+        //   ggbApplet.evalCommand("coefnumHNorm = coefnumH / CoefMax");
+        //   ggbApplet.evalCommand("coefdemHNorm = coefdemH / CoefMax");
+        //   setTimeout(paso4, 800);
+        // }
+
+        // function paso4() {
+        //   ordenarPolinomio("coefnumHNorm", "numH");
+        //   ordenarPolinomio("coefdemHNorm", "demH");
+        //   ggbApplet.evalCommand("Hnorm(s) = numHNorm / demHNorm");
+        //   setTimeout(esperarGrado, 400);
+        // }  
+
+        
+        // Función para esperar a que grado esté disponible
+        function esperarGrado(intentos = 0) {
+            if (intentos > 20) {                //Condicional de limite de intentos si no existe A
+                console.error("Demasiados intentos esperando A(s). Abortando...");
+                return;
+            }
+            const existeA = ggbApplet.exists("demH"); //Variable boleana de la existencia de A
+            if (!existeA) {                        //Condicional para verificar la existencia de A
+                console.warn("A(s) aún no existe. Reintentando...");
+                setTimeout(() => esperarGrado(intentos + 1), 300);
+                return;
+            }
+            const grado = ggbApplet.getValue("Degree(demH)");  //Variable que obtiene el grado de A
+            if (!isNaN(grado) && grado > 0) {               //Condicional para verificar el grado
+                console.log(" Grado de A(s):", grado);
+
+                // -----------Limpiar residuos anteriores-------------------------------------
+                const gradoMax = 10;
+                for (let i = 1; i <= gradoMax; i++) {
+                    if (ggbApplet.exists(`LGR_${i}`)) ggbApplet.evalCommand(`Delete[LGR_${i}]`);
+                    if (ggbApplet.exists(`z_${i}`)) ggbApplet.evalCommand(`Delete[z_${i}]`);
+                    if (ggbApplet.exists(`P_${i}`)) ggbApplet.evalCommand(`Delete[P_${i}]`);
+                }
+                
+                //--------Calculo de los polos del sistema de lazo cerrado-------------------
+                ggbApplet.evalCommand(`P_1= ComplexRoot(demH)`);
+                
+                const colores = [
+                    [255, 0, 0],     // Rojo
+                    [0, 0, 255],     // Azul
+                    [0, 128, 0],     // Verde
+                    [255, 165, 0],   // Naranja
+                    [128, 0, 128],   // Violeta
+                    [255, 0, 255],   // Magenta
+                    [0, 191, 255]    // Azul cielo
+                ] ;
+                
+                let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+                for (let i = 1; i <= grado; i++) { //Bucle para dibujar cada rama del LGR
+
+                    //Calculo del LGR CON LOCUS
+                    ggbApplet.evalCommand(`LGR_${i} = Locus(P_${i}, Kc)`); //Comando LOCUS
+
+                    //Estilo de las ramas y los polos 
+                    const [r, g, b] = colores[(i - 1) % colores.length]; //Color existente
+                    ggbApplet.setColor(`LGR_${i}`, r, g, b);            //Color de la rama
+                    ggbApplet.setLineThickness(`LGR_${i}`, 5);          //Grosor de la rama
+                    ggbApplet.evalCommand(`SetPointStyle(P_${i}, 1)`);  //Estilo X del polo
+                    ggbApplet.evalCommand(`SetLineThickness(P_${i}, 15)`); //Grosor del polo
+                    
+                    //Escalar la ventana grafica para ver LGR completo
+                    let x = ggbApplet.getXcoord(`P_${i}`);
+                    let y = ggbApplet.getYcoord(`P_${i}`);
+
+                    if (x < xmin) xmin = x;
+                    if (x > xmax) xmax = x;
+                    if (y < ymin) ymin = y;
+                    if (y > ymax) ymax = y;
+                }
+
+                // Agregar un margen para que no quede tan pegado
+                const margenX = (xmax - xmin) * 0.9 || 1;
+                const margenY = (ymax - ymin) * 0.5 || 1;
+                ggbApplet.evalCommand(`SetActiveView(1)`);
+                ggbApplet.setCoordSystem(-400,-50,1,50);
+                // ggbApplet.setCoordSystem(
+                //     xmin - margenX,
+                //     xmax + margenX,
+                //     ymin - margenY,
+                //     ymax + margenY
+                // );
+                ocultarExcepto(); //Funcion para ocultar objetos innecesarios
+                
+                //-----Llamado de funcion inversa_L para calcular H en el tiempo------
+                inversa_L(); 
+
+            } else {
+                console.warn("⏳ Esperando que A(s) esté lista... intento", intentos);
+                setTimeout(() => esperarGrado(intentos + 1), 300);
+            }
+        }
+        // Llamar a la función ESPERARGRADO para calcular LGR con A existente
+        
+        
+    }
+
+    
+    let polos = [];
+    let expresionClean;
+    let Htrespuesta;
+    function inversa_L() {
+      if (!ggbApplet.exists("H")) {
+        console.error("La variable H no existe todavía en GeoGebra.");
+        return;
+      }
+
+      // Obtener H(s)
+      let expresion = ggbApplet.getValueString("H");
+      if (!expresion || expresion.includes("?")) {
+        console.error("La expresión es inválida o no se ha definido correctamente.");
+        return;
+      }
+
+      // Limpiar expresión H(s)
+      expresionClean = limpiarExpresion(expresion);
+      console.log("Expresión limpia H(s):", expresionClean);
+
+      // Detectar automáticamente los polos z_1, z_2, ..., z_n
+      
+      let i = 1;
+      while (ggbApplet.exists(`P_${i}`)) {
+        let poloStr = ggbApplet.getValueString(`P_${i}`); // Ej: "1 + 2*ί"
+        
+        // Convertir formato de GeoGebra a sympy
+        poloStr = poloStr.replace("ί", "I");  // GeoGebra usa ί para imaginaro, SymPy usa I
+        poloStr = poloStr.replace(/\s+/g, ""); // quitar espacios
+
+        polos.push(poloStr);
+        i++;
+      }
+
+      console.log("Polos recogidos:", polos);
+      
+
+      // Preparar el payload
+      const payload = {
+        H: expresionClean,
+        polos: polos
+      };
+
+      const opciones = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      };
+
+      const url = `${BACKEND_URL}/laplace`;
+
+      fetch(url, opciones)
+        .then(async (response) => {
+          const raw = await response.text();
+          if (!response.ok) {
+            console.error("⚠️ Error del servidor. Respuesta cruda:", raw);
+            throw new Error("Respuesta no OK del servidor");
+          }
+
+          try {
+            return JSON.parse(raw);
+          } catch (err) {
+            console.error("❌ No se pudo interpretar JSON. Respuesta cruda:", raw);
+            throw new Error("Respuesta no válida como JSON");
+          }
+        })
+        .then(data => {
+          console.log("Respuesta del backend:", data);
+
+          if (data.tipo === "simbolico") {
+            expresion = data.resultado;
+            Htrespuesta = data.resultado;
+            if (expresion) {
+
+              //--------------Graficar en Geogebra---------------------------------
+              ggbApplet.evalCommand("Delete[Ht]");
+              let Htemporal = `Ht(t) = If[t >= 0, ${expresion}, ?]`;
+              console.log("Ht(t) simbólica:", Htemporal);
+              ggbApplet.evalCommand(`SetActiveView(2)`);
+
+              //----------Ajustar escala grafica 1-----------------------------
+              let yMax = 1.3*parseFloat(data.maximoHt)  //valor pico (20% más del máximo de Ht)
+              let tMax = 2*parseFloat(data.Tss); //tiempo máximo a mostrar (30% más del Tss)
+              // valor pico (20% más del máximo de Ht)                       
+              ggbApplet.evalCommand(`ZoomIn(-0.1,-0.1,${tMax},${yMax})`);                
+              
+              //Graficar respuesta temporal
+              ggbApplet.evalCommand(Htemporal);
+              ggbApplet.evalCommand('SetColor(Ht, 0, 0, 255)');  // Cambia color a azul
+              ggbApplet.evalCommand("ShowLabel(Ht,true)");
+              ggbApplet.evalCommand('SetCaption(Ht, "Ht temporal")'); 
+                
+            } else {
+              console.warn("No se recibió resultado simbólico válido.");
+            }
+          }
+
+          if (data.tipo === "numerico" && Array.isArray(data.puntos)) {
+            ggbApplet.evalCommand("Delete[ListaPuntos]");
+            const puntosGG = data.puntos.map(([t, y]) => `(${t}, ${y})`).join(", ");
+            ggbApplet.evalCommand(`ListaPuntos = {${puntosGG}}`);
+            ggbApplet.evalCommand(`Polyline[ListaPuntos]`);
+            console.log("✅ H(t) numérica graficada.");
+          }
+
+        })
+        .catch(error => {
+          console.error("❌ Error en la petición:", error);
+        });
+    }
+
+    function limpiarExpresion(expresionConIgual) {
+      if (!expresionConIgual.includes("=")) return "";
+
+      return expresionConIgual
+        .split("=")[1]
+        .trim()
+        .replace(/s⁰/g, "s^0")
+        .replace(/s¹/g, "s^1")
+        .replace(/s²/g, "s^2")
+        .replace(/s³/g, "s^3")
+        .replace(/s⁴/g, "s^4")
+        .replace(/s⁵/g, "s^5")
+        .replace(/s⁶/g, "s^6")
+        .replace(/s⁷/g, "s^7")
+        .replace(/s⁸/g, "s^8")
+        .replace(/s⁹/g, "s^9")
+        .replace(/(\d)(s)/g, "$1*$2");
+    }
+
+    
+    let datosParaExportar = [];
+
+    function Resultadosfinales() {
+        // Reemplaza aquí con tus variables reales
+        const RG = ggbApplet.getValueString("G");
+        const RC = ggbApplet.getValueString("C");
+        const RKc = parseFloat(document.getElementById("KcInput").value);
+        const RH = ggbApplet.getValueString("H");
+        const Rpolos = polos;
+        const RHt = Htrespuesta;
+
+        datosParaExportar = [
+            {titulo: "Función de planta ", texto: RG},
+            {titulo: "Funcion Controlador ", texto: RC},
+            {titulo: "Tipo controlador", texto: tipoControlador},
+            {titulo: "Parametro Kc", texto: RKc},
+            {titulo: "Parametro Ti", texto: Ti},
+            {titulo: "Parametro Td", texto: Td},
+            {titulo: "Filtro derivativo alpha", texto: alpha},
+            {titulo: "Funcion Lazo cerrado ", texto: RH},
+            {titulo: "Polos", texto: Rpolos},
+            {titulo: "Respuesta temporal H(t)", texto: RHt}
+        ];
+
+        const tbody = document.getElementById("listaDatos");  // <-- ahora es el <tbody> de una tabla
+        tbody.innerHTML = "";
+
+        datosParaExportar.forEach(dato => {
+            const row = document.createElement("tr");
+
+            const colTitulo = document.createElement("td");
+            colTitulo.textContent = dato.titulo;
+            colTitulo.style.padding = "8px";
+
+            const colTexto = document.createElement("td");
+            colTexto.textContent = dato.texto;
+            colTexto.style.padding = "8px";
+
+            row.appendChild(colTitulo);
+            row.appendChild(colTexto);
+
+            tbody.appendChild(row);
+        });
+
+
+        document.getElementById("modalResultados").style.display = "block";
+    }
+
+    function cerrarModal() {
+        document.getElementById("modalResultados").style.display = "none";
+    }
+
+    function exportarDatosExcel() {
+        // Crear un libro nuevo
+        const wb = XLSX.utils.book_new();
+
+        // Convertir datosParaExportar a formato tabla
+        // Cada objeto {titulo, texto} será una fila con dos columnas
+        const ws_data = datosParaExportar.map(d => [d.titulo, d.texto]);
+
+        // Agregar encabezado
+        ws_data.unshift(["Dato", "Valor"]);
+
+        // Crear hoja de cálculo
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+        // Agregar hoja al libro
+        XLSX.utils.book_append_sheet(wb, ws, "Datos");
+
+        // Descargar archivo Excel
+        XLSX.writeFile(wb, "DatosObtenidos.xlsx");
+    }
+    
+    function ordenarPolinomio(nombreLista, nombrePolinomio) {
+      if (!ggbApplet.exists(nombreLista)) return;
+
+      let len = ggbApplet.getValue(`Length[${nombreLista}]`);
+      let terminos = [];
+
+      for (let i = 1; i <= len; i++) {
+        let coef = ggbApplet.getValue(`Element[${nombreLista}, ${i}]`);
+        let grado = len - i;
+
+        if (coef === 0) continue;
+
+        let term = "";
+        if (grado === 0) {
+          term = `${coef}`;
+        } else if (grado === 1) {
+          if (coef === 1) term = "s";
+          else if (coef === -1) term = "-s";
+          else term = `${coef}s`;
+        } else {
+          if (coef === 1) term = `s^${grado}`;
+          else if (coef === -1) term = `-s^${grado}`;
+          else term = `${coef}s^${grado}`;
+        }
+
+        terminos.push(term);
+      }
+
+      let polinomioStr = terminos.join(" + ").replace(/\+\s\-/g, "- ");
+      ggbApplet.evalCommand(`${nombrePolinomio}Norm(s) := ${polinomioStr}`);
+
+    }
+</script>
+</body>
+</html>
